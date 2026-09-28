@@ -3,3 +3,7 @@
 __pycache__/
 chroma_db/
 documents/*.pdf
+src/chroma_test.py
+src/embeddings.py
+src/generate.py
+src/test_loader.py
