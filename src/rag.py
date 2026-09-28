@@ -1,179 +1,53 @@
-import os
 
-import chromadb
-from dotenv import load_dotenv
-from huggingface_hub import InferenceClient
-
-from embedding_model import EmbeddingModel
+from retriever import Retriever
+from context_builder import build_context
 
 
-load_dotenv()
+class RAG:
+
+    def __init__(self, retriever, generator):
+
+        self.retriever = retriever
+        self.generator = generator
 
 
-# -------------------------
-# 1. Models
-# -------------------------
+    def answer(self, question):
 
-embedding_model = EmbeddingModel()
+        # 1. Retrieve relevant chunks
+        results = self.retriever.retrieve(question)
 
-llm = InferenceClient(
-    provider="auto",
-    api_key=os.getenv("HF_TOKEN"),
-)
+        # 2. Build context for the generator
+        context = build_context(results)
 
-
-# -------------------------
-# 2. Chroma
-# -------------------------
-
-chroma_client = chromadb.PersistentClient(
-    path="chroma_db"
-)
-
-collection = chroma_client.get_collection(
-    name="documents_collection"
-)
-
-
-# -------------------------
-# 3. Ask a question
-# -------------------------
-
-question = "How were the yearly seasonal flood fraction rasters processed?"
-
-
-# -------------------------
-# 4. Embed the question
-# -------------------------
-
-query_embedding = embedding_model.embed(
-    [question]
-)[0]
-
-
-# -------------------------
-# 5. Retrieve chunks
-# -------------------------
-
-results = collection.query(
-    query_embeddings=[
-        query_embedding.tolist()
-    ],
-    n_results=3,
-)
-
-
-documents = results["documents"][0]
-metadatas = results["metadatas"][0]
-
-
-# -------------------------
-# 6. Build context
-# -------------------------
-
-context_parts = []
-
-for document, metadata in zip(
-    documents,
-    metadatas,
-):
-
-    source = metadata["source"]
-
-    citation = f"Source: {source}"
-
-    if "page" in metadata:
-        citation += f", Page {metadata['page']}"
-
-    context_parts.append(
-        f"[{citation}]\n"
-        f"{document}"
-    )
-
-
-context = "\n\n".join(context_parts)
-
-
-# -------------------------
-# 7. Create prompt
-# -------------------------
-
-prompt = f"""
-You are a document question-answering assistant.
-
-Answer the user's question using ONLY the provided context.
-
-Rules:
-
-1. Do not use outside knowledge.
-2. If the answer is not present in the context,
-   say that the information is not available.
-3. Do not include citations or source references.
-4. Include all important facts needed to answer
-   the question.
-5. For multi-part answers, use a numbered list.
-6. Do not add explanations that are not necessary
-   to answer the question.
-
-Context:
-
-{context}
-
-Question:
-
-{question}
-
-Answer:
-"""
-
-
-# -------------------------
-# 8. Generate answer
-# -------------------------
-
-response = llm.chat.completions.create(
-    model="openai/gpt-oss-120b",
-    messages=[
-        {
-            "role": "user",
-            "content": prompt,
-        }
-    ],
-    max_tokens=300,
-)
-
-
-answer = response.choices[0].message.content
-
-
-print("\nFINISH REASON:")
-print(response.choices[0].finish_reason)
-
-
-# -------------------------
-# 9. Display answer
-# -------------------------
-
-print("\nANSWER:")
-print(answer)
-
-
-print("\nRETRIEVED SOURCES:")
-
-seen_sources = set()
-
-for metadata in metadatas:
-
-    source = metadata["source"]
-
-    if "page" in metadata:
-        citation = (
-            f"{source}, "
-            f"Page {metadata['page']}"
+        # 3. Generate answer
+        answer = self.generator.generate(
+            question,
+            context,
         )
-    else:
-        citation = source
 
-    if citation not in seen_sources:
-        print(f"- {citation}")
-        seen_sources.add(citation)
+        # 4. Build deterministic sources
+        sources = []
+
+        seen_sources = set()
+
+        for metadata in results["metadatas"]:
+
+            source = metadata["source"]
+
+            if "page" in metadata:
+                citation = (
+                    f"{source}, "
+                    f"Page {metadata['page']}"
+                )
+            else:
+                citation = source
+
+            if citation not in seen_sources:
+                sources.append(citation)
+                seen_sources.add(citation)
+
+        return {
+            "answer": answer,
+            "sources": sources,
+            "retrieved": results,
+        }
