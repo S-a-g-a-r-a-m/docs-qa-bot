@@ -1,9 +1,8 @@
 .venv/
 .env
 __pycache__/
+*.pyc
+
 chroma_db/
+
 documents/*.pdf
-src/chroma_test.py
-src/embeddings.py
-src/generate.py
-src/test_loader.py

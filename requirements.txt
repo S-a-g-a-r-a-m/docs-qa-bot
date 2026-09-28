@@ -1,0 +1,8 @@
+chromadb
+huggingface_hub
+langchain-text-splitters
+numpy
+ollama
+pypdf
+python-dotenv
+streamlit

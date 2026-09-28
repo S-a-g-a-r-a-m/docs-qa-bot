@@ -1,22 +1,11 @@
-
-import os
-
-from dotenv import load_dotenv
-from google import genai
-
-
-load_dotenv()
+import ollama
 
 
 class Generator:
 
     def __init__(self):
 
-        self.client = genai.Client(
-            api_key=os.getenv("GEMINI_API_KEY")
-        )
-
-        self.model_name = "gemini-3.5-flash-lite"
+        self.model_name = "qwen2.5:3b"
 
 
     def generate(self, question, context):
@@ -35,8 +24,7 @@ Rules:
 4. Include all important facts needed to answer
    the question.
 5. For multi-part answers, use a numbered list.
-6. Do not add explanations that are not necessary
-   to answer the question.
+6. Do not add unnecessary explanations.
 
 Context:
 
@@ -49,9 +37,14 @@ Question:
 Answer:
 """
 
-        response = self.client.models.generate_content(
+        response = ollama.chat(
             model=self.model_name,
-            contents=prompt,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
         )
 
-        return response.text
+        return response["message"]["content"]
