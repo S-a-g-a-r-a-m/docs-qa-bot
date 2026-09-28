@@ -39,7 +39,9 @@ collection = chroma_client.get_collection(
 # 3. Ask a question
 # -------------------------
 
-question = "What raster data was analysed?"
+question = "How were the yearly seasonal flood fraction rasters processed?"
+
+
 # -------------------------
 # 4. Embed the question
 # -------------------------
@@ -99,17 +101,19 @@ context = "\n\n".join(context_parts)
 prompt = f"""
 You are a document question-answering assistant.
 
-Answer the user's question using ONLY the
-provided context.
+Answer the user's question using ONLY the provided context.
 
 Rules:
 
 1. Do not use outside knowledge.
 2. If the answer is not present in the context,
    say that the information is not available.
-3. Do not include citations or source references
-   in your answer.
-4. Answer concisely.
+3. Do not include citations or source references.
+4. Include all important facts needed to answer
+   the question.
+5. For multi-part answers, use a numbered list.
+6. Do not add explanations that are not necessary
+   to answer the question.
 
 Context:
 
@@ -135,14 +139,16 @@ response = llm.chat.completions.create(
             "content": prompt,
         }
     ],
-    max_tokens=200,
+    max_tokens=300,
 )
 
 
 answer = response.choices[0].message.content
 
+
 print("\nFINISH REASON:")
 print(response.choices[0].finish_reason)
+
 
 # -------------------------
 # 9. Display answer
@@ -154,17 +160,20 @@ print(answer)
 
 print("\nRETRIEVED SOURCES:")
 
+seen_sources = set()
+
 for metadata in metadatas:
 
     source = metadata["source"]
 
     if "page" in metadata:
-        print(
-            f"- {source}, "
+        citation = (
+            f"{source}, "
             f"Page {metadata['page']}"
         )
     else:
-        print(
-            f"- {source}"
-        )
+        citation = source
 
+    if citation not in seen_sources:
+        print(f"- {citation}")
+        seen_sources.add(citation)
